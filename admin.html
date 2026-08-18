@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel Admin - Campeonato</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js"></script>
+  <script src="js/auth.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; }
@@ -107,16 +107,39 @@
     .rank-2 { background: #bdc3c7; color: #2c3e50; }
     .rank-3 { background: #e67e22; color: white; }
     
-    .avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-    
     .loading { text-align: center; padding: 40px; color: #7f8c8d; }
     .empty-state { text-align: center; padding: 40px; color: #7f8c8d; }
     .actions-cell { display: flex; gap: 5px; flex-wrap: wrap; }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal h2 { margin-bottom: 20px; color: #1a1a2e; }
+    .modal .form-group { margin-bottom: 15px; }
+    .modal label { display: block; font-weight: 600; margin-bottom: 5px; color: #34495e; }
+    .modal input { width: 100%; padding: 10px; border: 1px solid #bdc3c7; border-radius: 5px; font-size: 14px; }
+    .modal input:focus { outline: none; border-color: #4a90e2; box-shadow: 0 0 0 2px rgba(74,144,226,0.2); }
+    .modal .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+    .modal .btn-group .btn { flex: 1; }
+    .hint { font-size: 12px; color: #7f8c8d; margin-top: 3px; }
+    .hint strong { color: #2c3e50; }
     
     @media (max-width: 768px) {
       .header { flex-direction: column; text-align: center; }
@@ -129,24 +152,24 @@
     <div class="header">
       <h1>🏆 Painel de Administração</h1>
       <div class="header-actions">
-        <a href="cadastrar.html" class="btn btn-success">➕ Novo Competidor</a>
+        <button id="novoBtn" class="btn btn-success">➕ Novo Competidor</button>
         <a href="cadastrar_admin.html" class="btn btn-primary">👤 Novo Admin</a>
         <button id="logoutBtn" class="btn btn-danger">🚪 Sair</button>
       </div>
     </div>
     
-    <div class="stats" id="statsContainer">
+    <div class="stats">
       <div class="stat-card">
         <h3>Total de Competidores</h3>
         <div class="value" id="totalCompetidores">0</div>
       </div>
       <div class="stat-card">
-        <h3>Melhor Média</h3>
-        <div class="value" id="melhorMedia">-</div>
+        <h3>Melhor Tempo</h3>
+        <div class="value" id="melhorTempo">-</div>
       </div>
       <div class="stat-card">
-        <h3>Pior Média</h3>
-        <div class="value" id="piorMedia">-</div>
+        <h3>Pior Tempo</h3>
+        <div class="value" id="piorTempo">-</div>
       </div>
     </div>
     
@@ -155,146 +178,344 @@
         <thead>
           <tr>
             <th>Posição</th>
-            <th>Foto</th>
             <th>Nome</th>
             <th>Tempo 1</th>
             <th>Tempo 2</th>
             <th>Tempo 3</th>
-            <th>Média</th>
+            <th>Tempo Oficial</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody id="adminTabela">
-          <tr><td colspan="8" class="loading">Carregando dados...</td></tr>
+          <tr><td colspan="7" class="loading">Carregando dados...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <script>
-    function getSupabaseClient() {
-      const client = window.supabaseClient || window.supabase;
-      if (!client || !client.auth || typeof client.from !== 'function') {
-        throw new Error('Supabase não foi inicializado. Verifique o auth.js e a ordem dos scripts.');
-      }
-      return client;
-    }
-    
-    const client = getSupabaseClient();
+  <!-- Modal - Novo Competidor (apenas nome) -->
+  <div id="modalNovo" class="modal">
+    <div class="modal-content">
+      <h2>Novo Competidor</h2>
+      <form id="formNovo">
+        <div class="form-group">
+          <label for="novoNome">Nome do Competidor</label>
+          <input type="text" id="novoNome" placeholder="Digite o nome completo" required autofocus>
+        </div>
+        <div class="btn-group">
+          <button type="button" class="btn btn-danger" id="cancelarNovoBtn">Cancelar</button>
+          <button type="submit" class="btn btn-success">Adicionar</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-    async function checkAuth() {
-      try {
-        const { data: { session } } = await client.auth.getSession();
-        if (!session) {
-          window.location.href = 'login.html';
-          return null;
+  <!-- Modal - Editar (nome + tempos) -->
+  <div id="modalEditar" class="modal">
+    <div class="modal-content">
+      <h2 id="editarTitle">Editar Competidor</h2>
+      <form id="formEditar">
+        <div class="form-group">
+          <label for="editarNome">Nome</label>
+          <input type="text" id="editarNome" required>
+        </div>
+        <div class="form-group">
+          <label for="editarTempo1">1º Tempo</label>
+          <input type="text" id="editarTempo1" placeholder="Ex: 15.500 ou 1:30.500">
+          <div class="hint">Formato: <strong>segundos</strong> (15.500) ou <strong>minutos:segundos</strong> (1:30.500)</div>
+        </div>
+        <div class="form-group">
+          <label for="editarTempo2">2º Tempo</label>
+          <input type="text" id="editarTempo2" placeholder="Ex: 15.500 ou 1:30.500">
+          <div class="hint">Formato: <strong>segundos</strong> (15.500) ou <strong>minutos:segundos</strong> (1:30.500)</div>
+        </div>
+        <div class="form-group">
+          <label for="editarTempo3">3º Tempo</label>
+          <input type="text" id="editarTempo3" placeholder="Ex: 15.500 ou 1:30.500">
+          <div class="hint">Formato: <strong>segundos</strong> (15.500) ou <strong>minutos:segundos</strong> (1:30.500)</div>
+        </div>
+        <div class="btn-group">
+          <button type="button" class="btn btn-danger" id="cancelarEditarBtn">Cancelar</button>
+          <button type="submit" class="btn btn-success">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const client = window.supabaseClient;
+
+    function formatarTempo(segundos) {
+      if (segundos === null || segundos === undefined || isNaN(segundos)) return '--';
+      const num = parseFloat(segundos);
+      if (isNaN(num)) return '--';
+      if (num >= 60) {
+        const minutos = Math.floor(num / 60);
+        const segs = (num % 60).toFixed(3);
+        return `${minutos}:${segs.padStart(6, '0')}`;
+      }
+      return num.toFixed(3) + 's';
+    }
+
+    function converterParaSegundos(valor) {
+      if (!valor || valor.trim() === '') return null;
+      const str = valor.trim().replace(',', '.');
+      if (str.includes(':')) {
+        const partes = str.split(':');
+        if (partes.length === 2) {
+          const minutos = parseFloat(partes[0]);
+          const segundos = parseFloat(partes[1]);
+          if (!isNaN(minutos) && !isNaN(segundos)) {
+            return (minutos * 60) + segundos;
+          }
         }
-        return session;
-      } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
-        window.location.href = 'login.html';
         return null;
       }
+      const num = parseFloat(str);
+      return isNaN(num) ? null : num;
     }
 
-    async function loadData() {
+    let editandoId = null;
+
+    async function carregarDados() {
       const tbody = document.getElementById('adminTabela');
-      tbody.innerHTML = '<tr><td colspan="8" class="loading">Carregando...</td></tr>';
       
       try {
-        const { data: competidores, error } = await client
-          .from('competidores')
+        // Busca ranking para pegar as posições
+        const { data: ranking, error: errRank } = await client
+          .from('ranking')
           .select('*')
-          .order('media', { ascending: true });
-        
-        if (error) throw error;
-        
-        if (competidores && competidores.length > 0) {
+          .order('posicao_ranking', { ascending: true });
+
+        if (errRank) throw errRank;
+
+        // Busca TODOS os competidores SEM ordenar pelo banco
+        const { data: competidores, error: errComp } = await client
+          .from('competidores')
+          .select('*');
+
+        if (errComp) throw errComp;
+
+        if (competidores) {
           document.getElementById('totalCompetidores').textContent = competidores.length;
           
-          const melhor = Number(competidores[0].media);
-          const pior = Number(competidores[competidores.length - 1].media);
+          const comTempo = competidores.filter(c => c.tempo_oficial !== null);
+          if (comTempo.length > 0) {
+            const tempos = comTempo.map(c => Number(c.tempo_oficial));
+            document.getElementById('melhorTempo').textContent = formatarTempo(Math.min(...tempos));
+            document.getElementById('piorTempo').textContent = formatarTempo(Math.max(...tempos));
+          } else {
+            document.getElementById('melhorTempo').textContent = '-';
+            document.getElementById('piorTempo').textContent = '-';
+          }
+        }
 
-          document.getElementById('melhorMedia').textContent = !isNaN(melhor) ? melhor.toFixed(3) + 's' : '-';
-          document.getElementById('piorMedia').textContent = !isNaN(pior) ? pior.toFixed(3) + 's' : '-';
+        // Mapa de posição por ID
+        const posMap = {};
+        if (ranking) {
+          ranking.forEach(r => { posMap[r.id] = r.posicao_ranking; });
+        }
 
-          tbody.innerHTML = competidores.map((c, index) => {
-            let rankClass = '';
-            if (index === 0) rankClass = 'rank-1';
-            else if (index === 1) rankClass = 'rank-2';
-            else if (index === 2) rankClass = 'rank-3';
-            
-            const fotoUrl = c.foto_url || 'https://via.placeholder.com/40';
-            const media = !isNaN(Number(c.media)) ? Number(c.media).toFixed(3) : '0.000';
-            const t1 = !isNaN(Number(c.tempo1)) ? Number(c.tempo1).toFixed(3) : '0.000';
-            const t2 = !isNaN(Number(c.tempo2)) ? Number(c.tempo2).toFixed(3) : '0.000';
-            const t3 = !isNaN(Number(c.tempo3)) ? Number(c.tempo3).toFixed(3) : '0.000';
-            
-            return `
-              <tr>
-                <td><span class="rank-badge ${rankClass}">#${index + 1}</span></td>
-                <td><img src="${fotoUrl}" alt="${c.nome}" class="avatar" onerror="this.src='https://via.placeholder.com/40'"></td>
-                <td><strong>${c.nome}</strong></td>
-                <td>${t1}s</td>
-                <td>${t2}s</td>
-                <td>${t3}s</td>
-                <td><strong>${media}s</strong></td>
-                <td>
-                  <div class="actions-cell">
-                    <button onclick="editCompetidor('${c.id}')" class="btn btn-warning btn-sm">✏️</button>
-                    <button onclick="deleteCompetidor('${c.id}')" class="btn btn-danger btn-sm">🗑️</button>
-                  </div>
-                </td>
-              </tr>
-            `;
-          }).join('');
-        } else {
+        if (!competidores || competidores.length === 0) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="8" class="empty-state">
+              <td colspan="7" class="empty-state">
                 <p>Nenhum competidor cadastrado ainda.</p>
-                <a href="cadastrar.html" class="btn btn-success" style="margin-top: 10px;">Adicionar primeiro competidor</a>
+                <button onclick="abrirNovo()" class="btn btn-success" style="margin-top: 10px;">Adicionar primeiro competidor</button>
               </td>
             </tr>
           `;
+          return;
         }
+
+        // ============================================================
+        // ORDENAÇÃO: PRIMEIRO OS QUE TÊM TEMPO (PELO RANKING)
+        // DEPOIS OS QUE NÃO TÊM (EM ORDEM ALFABÉTICA)
+        // ============================================================
+        const comTempoOrdenado = competidores
+          .filter(c => c.tempo_oficial !== null)
+          .sort((a, b) => {
+            const posA = posMap[a.id] || 999;
+            const posB = posMap[b.id] || 999;
+            return posA - posB;
+          });
+
+        const semTempoOrdenado = competidores
+          .filter(c => c.tempo_oficial === null)
+          .sort((a, b) => a.nome.localeCompare(b.nome));
+
+        const listaOrdenada = [...comTempoOrdenado, ...semTempoOrdenado];
+
+        tbody.innerHTML = listaOrdenada.map(c => {
+          const pos = posMap[c.id] || null;
+          const temTempo = c.tempo_oficial !== null;
+          
+          let classe = '';
+          let textoPos = '--';
+          if (temTempo && pos) {
+            textoPos = '#' + pos;
+            if (pos === 1) classe = 'rank-1';
+            else if (pos === 2) classe = 'rank-2';
+            else if (pos === 3) classe = 'rank-3';
+          }
+          
+          return `
+            <tr>
+              <td>${temTempo ? `<span class="rank-badge ${classe}">${textoPos}</span>` : '--'}</td>
+              <td><strong>${c.nome}</strong></td>
+              <td>${formatarTempo(c.tempo1)}</td>
+              <td>${formatarTempo(c.tempo2)}</td>
+              <td>${formatarTempo(c.tempo3)}</td>
+              <td><strong>${formatarTempo(c.tempo_oficial)}</strong></td>
+              <td>
+                <button onclick="abrirEditar('${c.id}')" class="btn btn-warning btn-sm">✏️</button>
+                <button onclick="excluir('${c.id}')" class="btn btn-danger btn-sm">🗑️</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
       } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-        tbody.innerHTML = `<tr><td colspan="8" class="loading">Erro ao carregar dados: ${error.message}</td></tr>`;
+        console.error('Erro:', error);
+        tbody.innerHTML = `<tr><td colspan="7" class="loading">Erro: ${error.message}</td></tr>`;
       }
     }
 
-    window.editCompetidor = function(id) {
-      window.location.href = `editar.html?id=${id}`;
-    };
+    // ABRIR NOVO (apenas nome)
+    function abrirNovo() {
+      document.getElementById('novoNome').value = '';
+      document.getElementById('modalNovo').classList.add('active');
+      setTimeout(() => document.getElementById('novoNome').focus(), 100);
+    }
+    document.getElementById('novoBtn').addEventListener('click', abrirNovo);
 
-    window.deleteCompetidor = async function(id) {
-      if (!confirm('Tem certeza que deseja excluir este competidor?')) return;
+    document.getElementById('cancelarNovoBtn').addEventListener('click', () => {
+      document.getElementById('modalNovo').classList.remove('active');
+    });
+
+    document.getElementById('modalNovo').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) {
+        document.getElementById('modalNovo').classList.remove('active');
+      }
+    });
+
+    document.getElementById('formNovo').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nome = document.getElementById('novoNome').value.trim();
+      if (!nome) {
+        alert('Digite o nome do competidor!');
+        return;
+      }
       
       try {
-        const { error } = await client
+        await client.from('competidores').insert([{ nome }]);
+        alert('✅ Competidor adicionado com sucesso!');
+        document.getElementById('modalNovo').classList.remove('active');
+        carregarDados();
+      } catch (error) {
+        alert('Erro: ' + error.message);
+      }
+    });
+
+    // ABRIR EDITAR (nome + tempos)
+    window.abrirEditar = async function(id) {
+      try {
+        const { data, error } = await client
           .from('competidores')
-          .delete()
-          .eq('id', id);
+          .select('*')
+          .eq('id', id)
+          .single();
         
         if (error) throw error;
         
-        alert('Competidor excluído com sucesso!');
-        loadData();
+        editandoId = id;
+        document.getElementById('editarTitle').textContent = 'Editar: ' + data.nome;
+        document.getElementById('editarNome').value = data.nome || '';
+        document.getElementById('editarTempo1').value = data.tempo1 ? formatarTempo(data.tempo1) : '';
+        document.getElementById('editarTempo2').value = data.tempo2 ? formatarTempo(data.tempo2) : '';
+        document.getElementById('editarTempo3').value = data.tempo3 ? formatarTempo(data.tempo3) : '';
+        document.getElementById('modalEditar').classList.add('active');
       } catch (error) {
-        alert('Erro ao excluir: ' + error.message);
+        alert('Erro: ' + error.message);
       }
     };
 
+    document.getElementById('cancelarEditarBtn').addEventListener('click', () => {
+      document.getElementById('modalEditar').classList.remove('active');
+    });
+
+    document.getElementById('modalEditar').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) {
+        document.getElementById('modalEditar').classList.remove('active');
+      }
+    });
+
+    document.getElementById('formEditar').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const nome = document.getElementById('editarNome').value.trim();
+      if (!nome) {
+        alert('Digite o nome!');
+        return;
+      }
+      
+      const dados = {
+        nome,
+        tempo1: converterParaSegundos(document.getElementById('editarTempo1').value),
+        tempo2: converterParaSegundos(document.getElementById('editarTempo2').value),
+        tempo3: converterParaSegundos(document.getElementById('editarTempo3').value)
+      };
+      
+      try {
+        await client.from('competidores').update(dados).eq('id', editandoId);
+        alert('✅ Atualizado com sucesso!');
+        document.getElementById('modalEditar').classList.remove('active');
+        carregarDados();
+      } catch (error) {
+        alert('Erro: ' + error.message);
+      }
+    });
+
+    // EXCLUIR
+    window.excluir = async function(id) {
+      if (!confirm('Tem certeza que deseja excluir este competidor?')) return;
+      
+      try {
+        await client.from('competidores').delete().eq('id', id);
+        alert('✅ Excluído com sucesso!');
+        carregarDados();
+      } catch (error) {
+        alert('Erro: ' + error.message);
+      }
+    };
+
+    // LOGOUT
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await client.auth.signOut();
       window.location.href = 'login.html';
     });
 
+    // VERIFICA AUTENTICAÇÃO
+    async function verificarAuth() {
+      try {
+        const { data: { session } } = await client.auth.getSession();
+        if (!session) {
+          window.location.href = 'login.html';
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error('Auth error:', error);
+        window.location.href = 'login.html';
+        return false;
+      }
+    }
+
+    // INICIALIZA
     (async function init() {
-      const session = await checkAuth();
-      if (session) {
-        loadData();
+      const autenticado = await verificarAuth();
+      if (autenticado) {
+        await carregarDados();
       }
     })();
   </script>

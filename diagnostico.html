@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Diagnóstico Supabase</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/auth.js"></script>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #0f0; padding: 20px; white-space: pre-wrap; }
+    .erro { color: #f55; }
+    .ok { color: #5f5; }
+    .info { color: #5cf; }
+  </style>
+</head>
+<body>
+<div id="log">Iniciando diagnóstico...\n\n</div>
+
+<script>
+  const log = document.getElementById('log');
+  function linha(texto, classe) {
+    const span = document.createElement('div');
+    if (classe) span.className = classe;
+    span.textContent = texto;
+    log.appendChild(span);
+  }
+
+  linha('1) Verificando se a biblioteca @supabase/supabase-js carregou do CDN...', 'info');
+  if (typeof window.supabase === 'undefined') {
+    linha('❌ FALHOU: window.supabase é undefined.', 'erro');
+  } else {
+    linha('✅ OK: window.supabase carregou com sucesso.', 'ok');
+    
+    linha('\n2) Verificando se auth.js carregou corretamente...', 'info');
+    if (typeof getSupabaseClient === 'function') {
+      linha('✅ OK: getSupabaseClient está disponível.', 'ok');
+      
+      try {
+        const client = getSupabaseClient();
+        linha('✅ OK: cliente obtido com sucesso.', 'ok');
+        
+        linha('\n3) Tentando fazer uma consulta simples (select na tabela competidores)...', 'info');
+        client.from('competidores').select('*').limit(1).then(({ data, error }) => {
+          if (error) {
+            linha('❌ FALHOU ao consultar a tabela: ' + error.message, 'erro');
+            linha('   Código: ' + (error.code || 'N/A'), 'erro');
+          } else {
+            linha('✅ OK: consulta funcionou! Registros: ' + (data ? data.length : 0), 'ok');
+          }
+        }).catch(e => {
+          linha('❌ ERRO DE REDE ao consultar: ' + e.message, 'erro');
+        });
+
+        linha('\n4) Tentando obter a sessão atual (getSession)...', 'info');
+        client.auth.getSession().then(({ data, error }) => {
+          if (error) {
+            linha('❌ FALHOU ao obter sessão: ' + error.message, 'erro');
+          } else {
+            linha('✅ OK: getSession funcionou. Sessão ativa: ' + (data.session ? 'SIM (' + data.session.user.email + ')' : 'NÃO'), 'ok');
+          }
+        }).catch(e => {
+          linha('❌ ERRO DE REDE ao obter sessão: ' + e.message, 'erro');
+        });
+
+      } catch (e) {
+        linha('❌ FALHOU ao obter cliente: ' + e.message, 'erro');
+      }
+    } else {
+      linha('❌ FALHOU: getSupabaseClient não está definido.', 'erro');
+      linha('   Verifique se o arquivo js/auth.js está no local correto.', 'erro');
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ranking - Cubo Mágico</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); min-height: 100vh; padding: 40px 20px; display: flex; justify-content: center; }
+        .container { max-width: 800px; width: 100%; }
+        .header { text-align: center; color: white; margin-bottom: 40px; }
+        .header h1 { font-size: 48px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
+        .header p { opacity: 0.8; }
+        
+        .ranking-list { display: flex; flex-direction: column; gap: 15px; }
+        
+        .competidor-card { 
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 20px 30px; display: flex; align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.2); color: white;
+            transition: transform 0.2s;
+        }
+        .competidor-card:hover { transform: scale(1.02); background: rgba(255, 255, 255, 0.15); }
+        
+        .posicao { 
+            font-size: 36px; 
+            font-weight: bold; 
+            width: 70px; 
+            text-align: center; 
+        }
+        .posicao-numero { color: #ffd700; }
+        .posicao-medalha { font-size: 40px; }
+        
+        .info { flex: 1; padding-left: 25px; border-left: 1px solid rgba(255,255,255,0.2); }
+        .nome { font-size: 26px; font-weight: bold; }
+        
+        .card-1 { border-color: #ffd700; background: rgba(255, 215, 0, 0.15); }
+        .card-2 { border-color: #c0c0c0; background: rgba(192, 192, 192, 0.15); }
+        .card-3 { border-color: #cd7f32; background: rgba(205, 127, 50, 0.15); }
+        
+        .loading { color: white; text-align: center; font-size: 20px; }
+
+        .voltar-btn {
+            display: block;
+            text-align: center;
+            margin-top: 30px;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            font-size: 16px;
+            transition: color 0.3s;
+        }
+        .voltar-btn:hover { color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏆 Ranking Oficial</h1>
+            <p>Classificação dos competidores</p>
+        </div>
+
+        <div id="rankingList" class="ranking-list">
+            <div class="loading">Carregando ranking... ⏳</div>
+        </div>
+        
+        <a href="index.html" class="voltar-btn">← Voltar para página inicial</a>
+    </div>
+
+    <script>
+        const client = getSupabaseClient();
+
+        async function carregarRanking() {
+            const { data, error } = await client
+                .from('ranking')
+                .select('*')
+                .order('posicao_ranking', { ascending: true });
+
+            if (error) {
+                console.error('Erro ao carregar ranking:', error);
+                return;
+            }
+
+            const container = document.getElementById('rankingList');
+            container.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="loading">Nenhum competidor com tempo registrado ainda.</div>';
+                return;
+            }
+
+            data.forEach((p) => {
+                let podiumClass = '';
+                let posicaoHtml = '';
+                
+                if (p.posicao_ranking === 1) { 
+                    podiumClass = 'card-1'; 
+                    posicaoHtml = '<span class="posicao-medalha">🥇</span>';
+                } else if (p.posicao_ranking === 2) { 
+                    podiumClass = 'card-2'; 
+                    posicaoHtml = '<span class="posicao-medalha">🥈</span>';
+                } else if (p.posicao_ranking === 3) { 
+                    podiumClass = 'card-3'; 
+                    posicaoHtml = '<span class="posicao-medalha">🥉</span>';
+                } else {
+                    posicaoHtml = `<span class="posicao-numero">#${p.posicao_ranking}</span>`;
+                }
+
+                container.innerHTML += `
+                    <div class="competidor-card ${podiumClass}">
+                        <div class="posicao">${posicaoHtml}</div>
+                        <div class="info">
+                            <div class="nome">${p.nome}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Carrega imediatamente e depois atualiza a cada 10 segundos
+        carregarRanking();
+        setInterval(carregarRanking, 10000);
+    </script>
+</body>
+</html>

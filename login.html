@@ -4,50 +4,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - Admin</title>
+  
+  <!-- Importando o Supabase e seu arquivo de configuração -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js"></script>
+  <script src="js/auth.js"></script>
+  
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+    body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; }
     
     .container {
       background: white;
       padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      border-radius: 10px;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.1);
       width: 100%;
       max-width: 400px;
     }
     
     .logo {
-      text-align: center;
       font-size: 48px;
       display: block;
+      text-align: center;
       margin-bottom: 10px;
     }
     
     h2 {
-      text-align: center;
       color: #1a1a2e;
+      text-align: center;
       margin-bottom: 5px;
     }
     
     .subtitle {
-      text-align: center;
       color: #7f8c8d;
+      text-align: center;
       font-size: 14px;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
     }
     
     .form-group {
-      margin-bottom: 20px;
+      margin-bottom: 15px;
     }
     
     label {
@@ -62,7 +58,7 @@
       width: 100%;
       padding: 12px;
       border: 1px solid #bdc3c7;
-      border-radius: 8px;
+      border-radius: 5px;
       font-size: 14px;
       transition: border-color 0.3s;
     }
@@ -75,9 +71,9 @@
     
     .btn {
       width: 100%;
-      padding: 14px;
+      padding: 12px;
       border: none;
-      border-radius: 8px;
+      border-radius: 5px;
       font-weight: 600;
       font-size: 16px;
       cursor: pointer;
@@ -92,17 +88,39 @@
     .btn-primary:hover {
       background: #357abd;
       transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
     }
     
     .btn-primary:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+      transform: none;
+    }
+    
+    .message {
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 15px;
+      display: none;
+      font-size: 14px;
+    }
+    
+    .message.success {
+      display: block;
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .message.error {
+      display: block;
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
     }
     
     .links {
       text-align: center;
-      margin-top: 20px;
+      margin-top: 15px;
     }
     
     .links a {
@@ -114,26 +132,17 @@
     .links a:hover {
       text-decoration: underline;
     }
-    
-    .message {
-      padding: 10px;
-      border-radius: 8px;
+
+    .debug-info {
       margin-top: 15px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      font-size: 12px;
+      color: #666;
       display: none;
-    }
-    
-    .message.error {
-      display: block;
-      background: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
-    }
-    
-    .message.success {
-      display: block;
-      background: #d4edda;
-      color: #155724;
-      border: 1px solid #c3e6cb;
+      border: 1px solid #dee2e6;
+      word-break: break-all;
     }
   </style>
 </head>
@@ -146,18 +155,19 @@
     <form id="loginForm">
       <div class="form-group">
         <label for="email">E-mail</label>
-        <input type="email" id="email" placeholder="seu@email.com" required />
+        <input type="email" id="email" placeholder="seu@email.com" required autocomplete="email" />
       </div>
       
       <div class="form-group">
         <label for="password">Senha</label>
-        <input type="password" id="password" placeholder="Sua senha" required />
+        <input type="password" id="password" placeholder="Sua senha" required autocomplete="current-password" />
       </div>
       
       <button type="submit" class="btn btn-primary" id="loginBtn">Entrar</button>
     </form>
     
     <div id="message" class="message"></div>
+    <div id="debugInfo" class="debug-info"></div>
     
     <div class="links">
       <a href="index.html">🏠 Voltar para página inicial</a>
@@ -165,46 +175,128 @@
   </div>
 
   <script>
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const loginBtn = document.getElementById('loginBtn');
-      const messageDiv = document.getElementById('message');
-      
-      loginBtn.disabled = true;
-      loginBtn.textContent = 'Entrando...';
-      messageDiv.className = 'message';
-      messageDiv.style.display = 'none';
-      
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      
+    let isRedirecting = false;
+    const debugDiv = document.getElementById('debugInfo');
+    
+    function showDebug(message) {
+      debugDiv.style.display = 'block';
+      debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+      console.log(message);
+    }
+    
+    // Verifica se já está logado assim que a página carrega
+    document.addEventListener('DOMContentLoaded', async () => {
       try {
-        const { data, error } = await window.supabase.auth.signInWithPassword({
-          email: email,
-          password: password
-        });
+        showDebug('🔍 Verificando sessão existente...');
+        const cliente = getSupabaseClient();
+        const { data: { session }, error } = await cliente.auth.getSession();
         
         if (error) {
-          throw new Error('Credenciais inválidas. Verifique seu e-mail e senha.');
+          showDebug('❌ Erro ao verificar sessão: ' + error.message);
         }
         
-        if (data && data.user) {
-          messageDiv.textContent = '✅ Login realizado com sucesso!';
-          messageDiv.className = 'message success';
+        if (session) {
+          showDebug('✅ Sessão encontrada para: ' + session.user.email);
+          if (!isRedirecting) {
+            isRedirecting = true;
+            window.location.replace('admin.html');
+          }
+        } else {
+          showDebug('ℹ️ Nenhuma sessão ativa');
+        }
+      } catch (error) {
+        showDebug('❌ Erro no DOMContentLoaded: ' + error.message);
+        console.error('Erro ao verificar autenticação:', error);
+      }
+    });
+
+    // Função que roda ao clicar em "Entrar"
+    document.getElementById('loginForm').addEventListener('submit', async function handleLogin(event) {
+      event.preventDefault();
+      
+      if (isRedirecting) return;
+      
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      
+      const messageDiv = document.getElementById('message');
+      const btnSubmit = document.getElementById('loginBtn');
+      
+      messageDiv.style.display = 'none';
+      messageDiv.classList.remove('error', 'success');
+      debugDiv.style.display = 'none';
+      debugDiv.innerHTML = '';
+      
+      btnSubmit.textContent = 'Autenticando...';
+      btnSubmit.disabled = true;
+      
+      try {
+        showDebug('🔐 Tentando login para: ' + email);
+        const cliente = getSupabaseClient();
+        
+        if (!cliente) {
+          throw new Error('Cliente Supabase não inicializado');
+        }
+        
+        showDebug('📡 Enviando requisição para Supabase...');
+        
+        const { data, error } = await cliente.auth.signInWithPassword({
+          email: email,
+          password: password,
+        });
+        
+        showDebug('📥 Resposta recebida');
+        
+        if (error) {
+          showDebug('❌ Erro do Supabase: ' + JSON.stringify(error));
+          messageDiv.classList.add('error');
+          
+          // Mensagens de erro mais específicas
+          if (error.message.includes('Invalid login credentials')) {
+            messageDiv.textContent = '❌ E-mail ou senha incorretos!';
+          } else if (error.message.includes('Email not confirmed')) {
+            messageDiv.textContent = '❌ E-mail não confirmado. Verifique sua caixa de entrada.';
+          } else if (error.message.includes('User not found')) {
+            messageDiv.textContent = '❌ Usuário não encontrado. Verifique o e-mail.';
+          } else {
+            messageDiv.textContent = '❌ ' + error.message;
+          }
+          
+          messageDiv.style.display = 'block';
+          btnSubmit.textContent = 'Entrar';
+          btnSubmit.disabled = false;
+          return;
+        }
+        
+        if (data.user) {
+          showDebug('✅ Login bem sucedido para: ' + data.user.email);
+          showDebug('🆔 User ID: ' + data.user.id);
+          
+          isRedirecting = true;
+          
+          messageDiv.classList.add('success');
+          messageDiv.textContent = '✅ Login realizado com sucesso! Redirecionando...';
           messageDiv.style.display = 'block';
           
           setTimeout(() => {
-            window.location.href = 'admin.html';
+            window.location.replace('admin.html');
           }, 1000);
+        } else {
+          showDebug('⚠️ Nenhum usuário retornado, mas sem erro');
+          throw new Error('Resposta inesperada do servidor');
         }
-        
       } catch (error) {
-        messageDiv.textContent = '❌ ' + error.message;
-        messageDiv.className = 'message error';
+        showDebug('💥 Erro capturado: ' + error.message);
+        showDebug('📋 Stack: ' + error.stack);
+        
+        console.error('Login error completo:', error);
+        
+        messageDiv.classList.add('error');
+        messageDiv.textContent = '❌ Erro: ' + error.message;
         messageDiv.style.display = 'block';
-        loginBtn.disabled = false;
-        loginBtn.textContent = 'Entrar';
+        
+        btnSubmit.textContent = 'Entrar';
+        btnSubmit.disabled = false;
       }
     });
   </script>

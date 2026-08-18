@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Tempos - Cubo Mágico</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { background: rgba(255, 255, 255, 0.95); padding: 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 500px; width: 100%; text-align: center; }
+        h1 { color: #1a1a2e; margin-bottom: 20px; }
+        .subtitulo { color: #666; margin-bottom: 20px; }
+        input { width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 10px; font-size: 18px; margin-bottom: 15px; outline: none; }
+        input:focus { border-color: #667eea; }
+        button { width: 100%; padding: 15px; background: #667eea; color: white; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #5a6cd6; }
+        
+        #resultado { display: none; margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 15px; }
+        .nome-resultado { font-size: 26px; color: #2c3e50; margin-bottom: 10px; }
+        .tempo-destaque { font-size: 36px; font-weight: bold; color: #2ecc71; margin: 15px 0; }
+        .posicao-destaque { font-size: 20px; color: #e67e22; font-weight: bold; }
+        
+        .tentativas { display: flex; justify-content: space-around; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .tentativa-box { font-size: 14px; color: #555; }
+        .tentativa-box span { display: block; font-size: 18px; font-weight: bold; color: #333; margin-top: 5px; }
+        
+        .erro-msg { color: #e74c3c; margin-top: 15px; font-weight: bold; display: none; }
+        .voltar-btn { display: inline-block; margin-top: 20px; color: #667eea; text-decoration: none; font-weight: 600; }
+        .voltar-btn:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Consultar Tempos</h1>
+        <p class="subtitulo">Digite seu nome para verificar sua posição oficial.</p>
+        
+        <input type="text" id="nomeBusca" placeholder="Digite seu nome (Ex: João Silva)">
+        <button onclick="buscarAluno()">Buscar Meu Tempo</button>
+        
+        <div id="msgErro" class="erro-msg">Participante não encontrado!</div>
+
+        <div id="resultado">
+            <div class="nome-resultado" id="resNome">Nome do Aluno</div>
+            <div class="posicao-destaque" id="resPosicao">Posição no Ranking: --</div>
+            <div class="tempo-destaque" id="resTempoOficial">--:--.---</div>
+            <p style="font-size: 12px; color: #888;">MENOR TEMPO (oficial)</p>
+
+            <div class="tentativas">
+                <div class="tentativa-box">1ª T.<span id="resT1">-</span></div>
+                <div class="tentativa-box">2ª T.<span id="resT2">-</span></div>
+                <div class="tentativa-box">3ª T.<span id="resT3">-</span></div>
+            </div>
+        </div>
+        
+        <a href="index.html" class="voltar-btn">← Voltar</a>
+    </div>
+
+    <script>
+        const client = getSupabaseClient();
+
+        async function buscarAluno() {
+            const nome = document.getElementById('nomeBusca').value.trim();
+            if (!nome) {
+                alert('Por favor, digite seu nome.');
+                return;
+            }
+
+            try {
+                // Busca o competidor pelo nome
+                const { data: competidor, error } = await client
+                    .from('competidores')
+                    .select('*')
+                    .ilike('nome', `%${nome}%`)
+                    .limit(1);
+
+                if (error || !competidor || competidor.length === 0) {
+                    document.getElementById('resultado').style.display = 'none';
+                    document.getElementById('msgErro').style.display = 'block';
+                    return;
+                }
+
+                const aluno = competidor[0];
+                
+                document.getElementById('msgErro').style.display = 'none';
+                document.getElementById('resultado').style.display = 'block';
+                
+                document.getElementById('resNome').textContent = aluno.nome;
+                
+                // Busca a posição no ranking usando a view
+                const { data: rankingData } = await client
+                    .from('ranking')
+                    .select('posicao_ranking, tempo_formatado')
+                    .eq('id', aluno.id)
+                    .limit(1);
+
+                if (rankingData && rankingData.length > 0) {
+                    document.getElementById('resPosicao').textContent = `Posição Atual: ${rankingData[0].posicao_ranking}º Lugar`;
+                    document.getElementById('resTempoOficial').textContent = rankingData[0].tempo_formatado || 'Aguardando';
+                } else {
+                    document.getElementById('resPosicao').textContent = 'Aguardando Classificação';
+                    document.getElementById('resTempoOficial').textContent = 'Aguardando tempos';
+                }
+
+                // Exibe as tentativas (já formatadas)
+                document.getElementById('resT1').textContent = aluno.tempo1 !== null && !isNaN(aluno.tempo1) ? formatarTempo(aluno.tempo1) : '-';
+                document.getElementById('resT2').textContent = aluno.tempo2 !== null && !isNaN(aluno.tempo2) ? formatarTempo(aluno.tempo2) : '-';
+                document.getElementById('resT3').textContent = aluno.tempo3 !== null && !isNaN(aluno.tempo3) ? formatarTempo(aluno.tempo3) : '-';
+
+            } catch (error) {
+                console.error('Erro ao buscar aluno:', error);
+                alert('Erro ao buscar dados: ' + error.message);
+            }
+        }
+
+        // Função para formatar tempo (mesma lógica do banco)
+        function formatarTempo(segundos) {
+            if (segundos === null || segundos === undefined || isNaN(segundos)) return '--';
+            const num = parseFloat(segundos);
+            if (isNaN(num)) return '--';
+            
+            if (num >= 60) {
+                const minutos = Math.floor(num / 60);
+                const segs = (num % 60).toFixed(3);
+                return `${minutos}:${segs.padStart(6, '0')}`;
+            }
+            return num.toFixed(3) + 's';
+        }
+
+        // Permite buscar apertando ENTER
+        document.getElementById('nomeBusca').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') buscarAluno();
+        });
+    </script>
+</body>
+</html>
