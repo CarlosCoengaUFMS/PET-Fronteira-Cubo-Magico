@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cadastro - Admin Robótica</title>
     <link rel="icon" href="./styles/logo.png" type="image/png">
+    <!-- Importa a biblioteca do Supabase e o seu script de configuração -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/auth.js"></script>
     <style>
@@ -268,16 +269,10 @@
 
     <script>
         // ============================================================
-        // CONFIGURAÇÃO DO SUPABASE - Usando a mesma do cadastrar.html
+        // CONFIGURAÇÃO DO SUPABASE
+        // Utilizamos a instância gerada pelo js/auth.js para evitar conflitos
         // ============================================================
-        const SUPABASE_URL = 'https://udsmloettgcwdvbyliwc.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable__g8VB-GPMjJ8Y6Dj26dmdg_a03LMGFj';
-        
-        // Cria o cliente diretamente (igual ao cadastrar.html)
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
-        // Torna global
-        window.supabase = supabase;
+        const supabaseInstance = window.supabaseClient;
 
         const errorDiv = document.getElementById('errorMessage');
         const successDiv = document.getElementById('successMessage');
@@ -313,7 +308,7 @@
         }
 
         // ============================================================
-        // FUNÇÃO DE CADASTRO - IGUAL AO cadastrar.html
+        // FUNÇÃO DE CADASTRO
         // ============================================================
         async function handleRegister(event) {
             event.preventDefault();
@@ -352,9 +347,9 @@
 
             try {
                 // ============================================================
-                // CHAMADA IGUAL AO cadastrar.html - COM O MESMO CLIENTE
+                // CHAMADA USANDO A INSTÂNCIA DO AUTH.JS
                 // ============================================================
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseInstance.auth.signUp({
                     email: email,
                     password: password,
                     options: {
@@ -396,9 +391,7 @@
                         return;
                     }
                     
-                    // ============================================================
-                    // SUCESSO - ENVIO DE EMAIL DE CONFIRMAÇÃO (gerenciado pelo Supabase)
-                    // ============================================================
+                    // SUCESSO
                     if (data.session) {
                         showSuccess('✅ Cadastro realizado com sucesso! Entrando...');
                         setTimeout(() => {
@@ -428,8 +421,7 @@
         // Adiciona o evento ao formulário
         registerForm.addEventListener('submit', handleRegister);
 
-        console.log('🚀 Página de cadastro carregada!');
-        console.log('📡 Cliente Supabase criado com sucesso!');
+        console.log('🚀 Página de cadastro carregada e conectada ao auth.js!');
     </script>
 </body>
 </html>
