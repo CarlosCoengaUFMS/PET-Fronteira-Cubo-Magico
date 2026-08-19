@@ -133,6 +133,19 @@
       text-decoration: underline;
     }
 
+    .forgot-password {
+      display: block;
+      text-align: right;
+      font-size: 12px;
+      margin-top: 5px;
+      color: #4a90e2;
+      text-decoration: none;
+    }
+
+    .forgot-password:hover {
+      text-decoration: underline;
+    }
+
     .debug-info {
       margin-top: 15px;
       padding: 10px;
@@ -161,6 +174,8 @@
       <div class="form-group">
         <label for="password">Senha</label>
         <input type="password" id="password" placeholder="Sua senha" required autocomplete="current-password" />
+        <!-- Link de Esqueci a Senha adicionado aqui -->
+        <a href="#" id="forgotPasswordBtn" class="forgot-password">Esqueceu a senha?</a>
       </div>
       
       <button type="submit" class="btn btn-primary" id="loginBtn">Entrar</button>
@@ -170,7 +185,8 @@
     <div id="debugInfo" class="debug-info"></div>
     
     <div class="links">
-      <a href="index.html">🏠 Voltar para página inicial</a>
+      <a href="index.html">🏠 Voltar para página inicial</a><br><br>
+      <a href="cadastrar_admin.html">Criar nova conta</a>
     </div>
   </div>
 
@@ -297,6 +313,53 @@
         
         btnSubmit.textContent = 'Entrar';
         btnSubmit.disabled = false;
+      }
+    });
+
+    // ==========================================================
+    // NOVA FUNÇÃO: RECUPERAR SENHA
+    // ==========================================================
+    document.getElementById('forgotPasswordBtn').addEventListener('click', async function handleResetPassword(event) {
+      event.preventDefault(); // Impede que o link recarregue a página
+      
+      const email = document.getElementById('email').value.trim();
+      const messageDiv = document.getElementById('message');
+      
+      messageDiv.classList.remove('error', 'success');
+      
+      // Verifica se o usuário digitou o e-mail no campo antes de clicar
+      if (!email) {
+        messageDiv.classList.add('error');
+        messageDiv.textContent = '❌ Por favor, digite seu e-mail no campo acima para recuperar a senha.';
+        messageDiv.style.display = 'block';
+        return;
+      }
+
+      messageDiv.classList.add('success');
+      messageDiv.textContent = '⏳ Enviando e-mail de recuperação...';
+      messageDiv.style.display = 'block';
+
+      try {
+        const cliente = getSupabaseClient();
+        
+        // Chama a função do Supabase para redefinir a senha
+        const { data, error } = await cliente.auth.resetPasswordForEmail(email, {
+          // URL para onde o usuário será redirecionado após clicar no link do e-mail.
+          // Substitua pela página onde o usuário irá digitar a nova senha (ex: redefinir_senha.html)
+          redirectTo: window.location.origin + '/redefinir_senha.html', 
+        });
+
+        if (error) {
+          messageDiv.classList.remove('success');
+          messageDiv.classList.add('error');
+          messageDiv.textContent = '❌ Erro ao enviar e-mail: ' + error.message;
+        } else {
+          messageDiv.textContent = '✅ E-mail de recuperação enviado! Verifique sua caixa de entrada e spam.';
+        }
+      } catch (error) {
+        messageDiv.classList.remove('success');
+        messageDiv.classList.add('error');
+        messageDiv.textContent = '❌ Erro inesperado: ' + error.message;
       }
     });
   </script>
